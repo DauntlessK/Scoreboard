@@ -66,7 +66,7 @@ int ledAlphabetArray[26][7] = {
 };
 
 int board_light = 13;
-int goal_light = 53;
+int goal_light = 53; //SIREN GOAL LIGHT
 
 const int IR_RECEIVE_PIN = 2;
 
@@ -109,7 +109,7 @@ const int IR_RECEIVE_PIN = 2;
 #define NOTE_AS3 233
 #define NOTE_B3 247
 
-#define BUZZER XX // Your buzzer pin
+#define BUZZER A0 // Your buzzer pin
 
 
 // Melody notes
@@ -235,6 +235,7 @@ void lightSegments(int team){
 
 void score(int team){
   //check if this pushes the score over 9
+  digitalWrite(goal_light, HIGH);
   if (scores[team] == 9) {
     gameover(team);
   }
@@ -248,14 +249,25 @@ void score(int team){
         tone(A0, 100);
         delay(2000);
         noTone(A0);
+        tone(A0, 100);
+        delay(5000);
+        noTone(A0);
     }
   }
   lightSegments(team);
+  digitalWrite(goal_light, LOW);
+}
+
+//Lights goal light siren for X seconds
+void goalLight(int sec) {
+  sec = sec * 1000;
+  digitalWrite(goal_light, HIGH);
+  delay(sec);
+  digitalWrite(goal_light, LOW);
 }
 
 //when the passed in team wins
 void gameover(int team){
-  digitalWrite(goal_light, HIGH);
   digitalWrite(board_light, HIGH);
 
   offSegments();
@@ -314,10 +326,10 @@ void runTest(){
   for (int i = 0; i < 9; i++){
     score(home);
     digitalWrite(board_light, HIGH);
-    delay(400);
+    delay(200);
     score(away);
     digitalWrite(board_light, LOW);
-    delay(400);
+    delay(200);
     //Serial.println(lightSegments[home].toString());
   }
   delay(400);
