@@ -15,6 +15,13 @@ int segmentPins[2][7] = {
   {23,25,27,29,31,33,35}    //home segments A-G
 };
 
+//BUTTON PINS
+const int RESET_SCORES = 40;
+const int AWAY_INC = 42;
+const int AWAY_DEC = 43;
+const int HOME_INC = 44;
+const int HOME_DEC = 45;
+
 //segment on or off, from segment A to G
 int ledNumArray[10][7] = {
     {1, 1, 1, 1, 1, 1, 0},     // 0
@@ -63,13 +70,102 @@ int goal_light = 53;
 
 const int IR_RECEIVE_PIN = 2;
 
+//Music
+// Define notes with their assigned frequency
+#define NOTE_C4 262
+#define NOTE_CS4 277
+#define NOTE_D4 294
+#define NOTE_DS4 311
+#define NOTE_E4 330
+#define NOTE_F4 349
+#define NOTE_FS4 370
+#define NOTE_G4 392
+#define NOTE_GS4 415
+#define NOTE_A4 440
+#define NOTE_AS4 466
+#define NOTE_B4 494
+#define NOTE_C5 523
+#define NOTE_CS5 554
+#define NOTE_D5 587
+#define NOTE_DS5 622
+#define NOTE_E5 659
+#define NOTE_F5 698
+#define NOTE_FS5 740
+#define NOTE_G5 784
+#define NOTE_GS5 831
+#define NOTE_A5 880
+#define NOTE_AS5 932
+#define NOTE_B5 988
+#define NOTE_C3 131
+#define NOTE_CS3 139
+#define NOTE_D3 147
+#define NOTE_DS3 156
+#define NOTE_E3 165
+#define NOTE_F3 175
+#define NOTE_FS3 185
+#define NOTE_G3 196
+#define NOTE_GS3 208
+#define NOTE_A3 220
+#define NOTE_AS3 233
+#define NOTE_B3 247
+
+#define BUZZER XX // Your buzzer pin
+
+
+// Melody notes
+int championMelody[] = {
+
+  NOTE_D5, NOTE_CS5, NOTE_D5, NOTE_CS5, NOTE_A4, 0, NOTE_FS4, NOTE_B4, NOTE_FS4,
+
+  NOTE_G3, 0, NOTE_A3, 0,
+
+  NOTE_D5, NOTE_E5, NOTE_FS5, NOTE_A5, NOTE_FS5, NOTE_B4, NOTE_CS5, NOTE_B4,
+
+  NOTE_FS3, NOTE_F3, NOTE_E3, NOTE_C4, NOTE_B3,
+
+  NOTE_B4, NOTE_A4, NOTE_B4, NOTE_A4, NOTE_G4, 0, 
+  NOTE_G5, NOTE_FS5, NOTE_G5, NOTE_FS5, NOTE_E5, 0, 
+  
+  NOTE_FS5, 0, NOTE_D5, NOTE_G5, 
+  NOTE_FS5, 0, NOTE_D5, NOTE_G5, 
+  NOTE_F5, 0, NOTE_D5, NOTE_G5, 
+  NOTE_F5, 0, NOTE_D5,
+
+  NOTE_A3, 0, NOTE_A3,
+
+  NOTE_C5, NOTE_A4, NOTE_D5,
+};
+
+// Note durations
+int championNoteDurations[] = {
+
+  1, 4, 4, 2, 2, 4, 4, 2, 1,
+
+  2, 4, 2, 4,
+
+  1, 4, 4, 2, 2, 4, 4, 1, 
+  
+  4, 4, 2, 2, 2,
+
+  1, 4, 4, 2, 2, 2, 
+  1, 4, 4, 2, 2, 2,
+
+  2, 4, 2, 4,
+  2, 4, 2, 4, 
+  2, 4, 2, 4, 
+  2, 4, 1, 
+  
+  8, 8, 1,
+
+  4, 8, 1,
+};
+
+//==============================================================
+
 void setup() {
   Serial.begin(9600);
   while (!Serial)
     ;
-
-  //Start Receiver
-  IrReceiver.begin(IR_RECEIVE_PIN, ENABLE_LED_FEEDBACK);
 
   //init both sets of 7 segment display pins
   for (int i=0; i < 7; i++){
@@ -79,6 +175,47 @@ void setup() {
 
   pinMode(board_light, OUTPUT);
   pinMode(goal_light, OUTPUT);
+  pinMode(RESET_SCORES, INPUT_PULLUP);
+  pinMode(AWAY_INC, INPUT_PULLUP);
+  pinMode(AWAY_DEC, INPUT_PULLUP);
+  pinMode(HOME_INC, INPUT_PULLUP);
+  pinMode(HOME_DEC, INPUT_PULLUP);
+  pinMode(A0, OUTPUT);
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+  if (!isPlayingGame)
+  {
+    runTest();
+    Serial.println("Beginning Game");
+    startGame();
+  }
+  //Reset Button
+  if (digitalRead(RESET_SCORES) == 0) {
+    delay(50);
+    score(1);
+  }
+  //Away Scores
+  else if (digitalRead(AWAY_INC) == 0) {
+    delay(50);
+    score(0);
+  }
+  //Away Minus Goal
+  else if (digitalRead(AWAY_DEC) == 0) {
+    delay(50);
+    decreaseScore(0);
+  }
+  //Home Scores
+  else if (digitalRead(HOME_INC) == 0) {
+    delay(50);
+    score(1);
+  }
+  //Home Minus Goal
+  else if (digitalRead(HOME_DEC) == 0) {
+    delay(50);
+    decreaseScore(1);
+  }
 }
 
 //checks ledNumArray (array row (score) and segment (column)) for correct segment lighting then loops through to light each segment
@@ -103,6 +240,15 @@ void score(int team){
   }
   else{
     scores[team]++;
+    if (isPlayingGame) {
+        tone(A0, 100);
+        delay(2000);
+        noTone(A0);
+        delay(1000);
+        tone(A0, 100);
+        delay(2000);
+        noTone(A0);
+    }
   }
   lightSegments(team);
 }
@@ -113,6 +259,7 @@ void gameover(int team){
   digitalWrite(board_light, HIGH);
 
   offSegments();
+  playChampionMelody();
   winCircle(10, team);
   reset();
 }
@@ -136,6 +283,7 @@ void offSegments() {
 
 //reset scores to 0 and turns all LEDS off - sets isPlaying Boolean to false, exits game
 void reset(){
+  Serial.println("Resetting");
   offSegments();
   isPlayingGame = false;
 
@@ -158,6 +306,7 @@ void decreaseScore(int team) {
 void runTest(){
   //step through all possible scores, 0-9
   reset();
+  Serial.println("Starting Test");
   lightSegments[home];
   lightSegments[away];
   delay(400);
@@ -174,6 +323,7 @@ void runTest(){
   delay(400);
   reset();
   loadCircle(5);
+  Serial.println("Finishing Test");
   reset();
 }
 
@@ -210,54 +360,23 @@ void winCircle(int times, int team){
   }
 }
 
-void loop() {
-  // put your main code here, to run repeatedly:
-  //score(home);
-    if (IrReceiver.decode()) {
-
-        /*
-         * Print a summary of received data
-         */
-        if (IrReceiver.decodedIRData.protocol == UNKNOWN) {
-            Serial.println(F("Received noise or an unknown (or not yet enabled) protocol"));
-            // We have an unknown protocol here, print extended info
-            IrReceiver.printIRResultRawFormatted(&Serial, true);
-            IrReceiver.resume(); // Do it here, to preserve raw data for printing with printIRResultRawFormatted()
-        } else {
-            IrReceiver.resume(); // Early enable receiving of the next IR frame
-            IrReceiver.printIRResultShort(&Serial);
-            IrReceiver.printIRSendUsage(&Serial);
-        }
-
-        switch (IrReceiver.decodedIRData.command) {
-          case 0x45:
-            if (!isPlayingGame) {
-              startGame();
-            }
-            break;
-          case 0x44:
-            score(home);
-            break;
-          case 0x77:
-            decreaseScore(home);
-            break;
-          case 0x43:
-            score(away);
-            break;
-          case 0x9:
-            decreaseScore(away);
-            break;
-          case 0x19:
-            reset();
-            break;
-          case 0x46:
-            loadCircle(5);
-            delay(1000);
-            runTest();
-            break;
-        }
-
-    }
-  //delay(3000);
-  //runTest();
+//Music-related
+// Function to play the Queen's melody
+void playChampionMelody() {
+  playMelody(championMelody, championNoteDurations, 72);
 }
+
+
+// Function to play a melody
+void playMelody(int *melody, int *noteDurations, int notesLength) {
+  for (int thisNote = 0; thisNote < notesLength; thisNote++) {
+    int noteDuration = 1000 / noteDurations[thisNote];
+    tone(BUZZER, melody[thisNote], noteDuration);
+
+    int pauseBetweenNotes = noteDuration * 1.30;
+    delay(pauseBetweenNotes);
+    noTone(BUZZER);
+  }
+}
+
+
